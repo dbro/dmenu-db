@@ -10,6 +10,7 @@
 #ifdef XINERAMA
 #include <X11/extensions/Xinerama.h>
 #endif
+#include <X11/Xft/Xft.h>
 #include "draw.h"
 
 #define INRECT(x,y,rx,ry,rw,rh) ((x) >= (rx) && (x) < (rx)+(rw) && (y) >= (ry) && (y) < (ry)+(rh))
@@ -46,6 +47,7 @@ static int monitor = -1;
 static int promptw;
 static size_t cursor = 0;
 static const char *font = NULL;
+static const char *fontxft = NULL; // "Monospace-10:normal"; /*if set xft is used */
 static const char *prompt = NULL;
 static const char *normbgcolor = "#cccccc";
 static const char *normfgcolor = "#000000";
@@ -89,6 +91,8 @@ main(int argc, char *argv[]) {
 			prompt = argv[++i];
 		else if(!strcmp(argv[i], "-fn"))
 			font = argv[++i];
+		else if(!strcmp(argv[i], "-fa"))
+			fontxft = argv[++i];
 		else if(!strcmp(argv[i], "-nb"))
 			normbgcolor = argv[++i];
 		else if(!strcmp(argv[i], "-nf"))
@@ -101,7 +105,16 @@ main(int argc, char *argv[]) {
 			usage();
 
 	dc = initdc();
-	initfont(dc, font);
+    if(fontxft) {
+	    int screen = DefaultScreen(dc->dpy);
+        if(!XftColorAllocName(dc->dpy, DefaultVisual(dc->dpy, screen), DefaultColormap(dc->dpy, screen), (const char*)normfgcolor, &dc->xftcolor))
+            eprintf("error, cannot allocate xft font color '%s'\n", normfgcolor);
+        if(!XftColorAllocName(dc->dpy, DefaultVisual(dc->dpy, screen), DefaultColormap(dc->dpy, screen), (const char*)selfgcolor, &dc->xftselcolor))
+            eprintf("error, cannot allocate xft font color '%s'\n", normfgcolor);
+        initxftfont(dc, fontxft);
+    }
+    else initfont(dc, font);
+
 	readstdin();
 	setup();
 	run();
@@ -149,7 +162,9 @@ drawmenu(void) {
 
 	if(prompt) {
 		dc->w = promptw;
+        dc->selected=True;
 		drawtext(dc, prompt, selcol);
+        dc->selected=False;
 		dc->x = dc->w;
 	}
 	dc->w = (lines > 0 || !matches) ? mw - dc->x : inputw;
@@ -161,7 +176,13 @@ drawmenu(void) {
 		dc->w = mw - dc->x;
 		for(item = curr; item != next; item = item->right) {
 			dc->y += dc->h;
-			drawtext(dc, item->text, (item == sel) ? selcol : normcol);
+            if(item==sel) {
+                dc->selected=True;
+			    drawtext(dc, item->text, selcol);
+                dc->selected=False;
+            } else {
+			    drawtext(dc, item->text, normcol);
+            }
 		}
 	}
 	else if(matches) {
@@ -172,7 +193,13 @@ drawmenu(void) {
 		for(item = curr; item != next; item = item->right) {
 			dc->x += dc->w;
 			dc->w = MIN(textw(dc, item->text), mw - dc->x - textw(dc, ">"));
-			drawtext(dc, item->text, (item == sel) ? selcol : normcol);
+            if(item==sel) {
+                dc->selected=True;
+			    drawtext(dc, item->text, selcol);
+                dc->selected=False;
+            } else {
+			    drawtext(dc, item->text, normcol);
+            }
 		}
 		dc->w = textw(dc, ">");
 		dc->x = mw - dc->w;
@@ -490,7 +517,7 @@ setup(void) {
 	selcol[ColFG] = getcolor(dc, selfgcolor);
 
 	/* menu geometry */
-	bh = dc->font.height + 2;
+	bh = (fontxft ? dc->xftfont.height : dc->font.height) + 2;
 	lines = MAX(lines, 0);
 	mh = (lines + 1) * bh;
 #ifdef XINERAMA
@@ -536,7 +563,7 @@ setup(void) {
 
 void
 usage(void) {
-	fputs("usage: dmenu [-b] [-i] [-l lines] [-m monitor] [-p prompt] [-fn font]\n"
+	fputs("usage: dmenu [-b] [-i] [-l lines] [-m monitor] [-p prompt] [-fn font] [-fa xftfont]\n"
 	      "             [-nb color] [-nf color] [-sb color] [-sf color] [-v]\n", stderr);
 	exit(EXIT_FAILURE);
 }

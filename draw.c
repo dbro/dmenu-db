@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <X11/Xlib.h>
+#include <X11/Xft/Xft.h>
 #include "draw.h"
 
 #define MAX(a, b)   ((a) > (b) ? (a) : (b))
@@ -33,7 +34,7 @@ drawtext(DC *dc, const char *text, unsigned long col[ColLast]) {
 
 	/* shorten text if necessary */
 	n = strlen(text);
-	for(mn = MIN(n, sizeof buf); textnw(dc, text, mn) > dc->w - dc->font.height/2; mn--)
+	for(mn = MIN(n, sizeof buf); textnw(dc, text, mn) > dc->w - (dc->xftfont.xft_font ? dc->xftfont.height : dc->font.height)/2; mn--)
 		if(mn == 0)
 			return;
 	memcpy(buf, text, mn);
@@ -48,11 +49,19 @@ void
 drawtextn(DC *dc, const char *text, size_t n, unsigned long col[ColLast]) {
 	int x, y;
 
-	x = dc->x + dc->font.height/2;
-	y = dc->y + dc->font.ascent+1;
+	x = dc->x + (dc->xftfont.xft_font ? dc->xftfont.height : dc->font.height)/2;
+	y = dc->y + (dc->xftfont.xft_font ? dc->xftfont.ascent : dc->font.ascent)+1;
 
 	XSetForeground(dc->dpy, dc->gc, FG(dc, col));
-	if(dc->font.set)
+    if(dc->xftfont.xft_font) {
+        if (!dc->xftdraw)
+            eprintf("error, creating xft drawable failed");
+        if(dc->selected) {
+            XftDrawStringUtf8(dc->xftdraw, &dc->xftselcolor, dc->xftfont.xft_font, x, y, (unsigned char*)text, n);
+        } else {
+            XftDrawStringUtf8(dc->xftdraw, &dc->xftcolor, dc->xftfont.xft_font, x, y, (unsigned char*)text, n);
+        }
+    } else if(dc->font.set)
 		XmbDrawString(dc->dpy, dc->canvas, dc->font.set, dc->gc, x, y, text, n);
 	else {
 		XSetFont(dc->dpy, dc->gc, dc->font.xfont->fid);
@@ -73,9 +82,15 @@ eprintf(const char *fmt, ...) {
 
 void
 freedc(DC *dc) {
+    if(dc->xftfont.xft_font) {
+        int screen = DefaultScreen(dc->dpy);
+        XftColorFree (dc->dpy, DefaultVisual(dc->dpy, screen), DefaultColormap(dc->dpy, screen), &dc->xftcolor);
+        XftFontClose (dc->dpy, dc->xftfont.xft_font);
+        XftDrawDestroy(dc->xftdraw);
+    }
 	if(dc->font.set)
 		XFreeFontSet(dc->dpy, dc->font.set);
-	if(dc->font.xfont)
+	if(dc->font.xfont)  // else if(!fontxft) [?]
 		XFreeFont(dc->dpy, dc->font.xfont);
 	if(dc->canvas)
 		XFreePixmap(dc->dpy, dc->canvas);
@@ -109,7 +124,9 @@ initdc(void) {
 	XSetLineAttributes(dc->dpy, dc->gc, 1, LineSolid, CapButt, JoinMiter);
 	dc->font.xfont = NULL;
 	dc->font.set = NULL;
+    dc->xftfont.xft_font = NULL;
 	dc->canvas = None;
+    dc->selected = False;
 	return dc;
 }
 
@@ -122,6 +139,22 @@ initfont(DC *dc, const char *fontstr) {
 			eprintf("cannot load font '%s'\n", DEFFONT);
 	}
 	dc->font.height = dc->font.ascent + dc->font.descent;
+}
+
+void
+initxftfont(DC *dc, const char *fontstr) {
+    int screen = DefaultScreen(dc->dpy);
+//    if(!XftColorAllocName(dc->dpy, DefaultVisual(dc->dpy, screen), DefaultColormap(dc->dpy, screen), (const char*)normfgcolor, &dc->xftcolor))
+//        eprintf("error, cannot allocate xft font color '%s'\n", normfgcolor);
+//    if(!XftColorAllocName(dc->dpy, DefaultVisual(dc->dpy, screen), DefaultColormap(dc->dpy, screen), (const char*)selfgcolor, &dc->xftselcolor))
+//        eprintf("error, cannot allocate xft font color '%s'\n", normfgcolor);
+    if(!(dc->xftfont.xft_font = XftFontOpenName (dc->dpy, screen, fontstr)))
+        eprintf("error, cannot load xft font\n" );
+    if(!(dc->xftdraw = XftDrawCreate(dc->dpy, dc->canvas, DefaultVisual(dc->dpy,screen), DefaultColormap(dc->dpy,screen))));
+        eprintf("error, cannot create xft drawable\n");
+    dc->xftfont.ascent = dc->xftfont.xft_font->ascent;
+    dc->xftfont.descent = dc->xftfont.xft_font->descent;
+    dc->xftfont.height = dc->xftfont.ascent + dc->xftfont.descent;
 }
 
 Bool
@@ -169,9 +202,11 @@ resizedc(DC *dc, unsigned int w, unsigned int h) {
 
 int
 textnw(DC *dc, const char *text, size_t len) {
-	if(dc->font.set) {
+    if(dc->xftfont.xft_font) {
+        XftTextExtentsUtf8(dc->dpy, dc->xftfont.xft_font, (const FcChar8*)text, len, &dc->gi);
+        return dc->gi.width;
+    } else if(dc->font.set) {
 		XRectangle r;
-
 		XmbTextExtents(dc->font.set, text, len, NULL, &r);
 		return r.width;
 	}
@@ -180,7 +215,9 @@ textnw(DC *dc, const char *text, size_t len) {
 
 int
 textw(DC *dc, const char *text) {
-	return textnw(dc, text, strlen(text)) + dc->font.height;
+//    if(dc->xftfont.xft_font)
+//        return textnw(dc, text, strlen(text)) + dc->xftfont.height;
+	return textnw(dc, text, strlen(text)) + (dc->xftfont.xft_font ? dc->xftfont.height : dc->font.height);
 }
 
 void

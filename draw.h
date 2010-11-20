@@ -18,6 +18,17 @@ typedef struct {
 		XFontSet set;
 		XFontStruct *xfont;
 	} font;
+    Bool selected;
+    XftDraw *xftdraw;
+    XftColor xftselcolor;
+    XftColor xftcolor;
+    XGlyphInfo gi;
+    struct {
+        XftFont *xft_font;
+        int ascent;
+        int descent;
+        int height;
+    } xftfont;
 } DC;  /* draw context */
 
 unsigned long getcolor(DC *dc, const char *colstr);
@@ -25,6 +36,7 @@ void drawrect(DC *dc, int x, int y, unsigned int w, unsigned int h, Bool fill, u
 void drawtext(DC *dc, const char *text, unsigned long col[ColLast]);
 void drawtextn(DC *dc, const char *text, size_t n, unsigned long col[ColLast]);
 void initfont(DC *dc, const char *fontstr);
+void initxftfont(DC *dc, const char *fontstr);
 void freedc(DC *dc);
 DC *initdc(void);
 void mapdc(DC *dc, Window win, unsigned int w, unsigned int h);

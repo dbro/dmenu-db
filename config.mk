@@ -14,14 +14,20 @@ X11LIB = /usr/X11R6/lib
 XINERAMALIBS  = -lXinerama
 XINERAMAFLAGS = -DXINERAMA
 
+# Xft, comment if you don't want it
+XFTINC = /usr/include/freetype2
+XFTLIBS  = -lXft -lXrender -lfreetype -lz -lfontconfig
+
 # includes and libs
-INCS = -I${X11INC}
-LIBS = -L${X11LIB} -lX11 ${XINERAMALIBS}
+INCS = -I${X11INC} -I${XFTINC}
+LIBS = -L${X11LIB} -lX11 ${XINERAMALIBS} ${XFTLIBS}
 
 # flags
 CPPFLAGS = -D_BSD_SOURCE -DVERSION=\"${VERSION}\" ${XINERAMAFLAGS}
 CFLAGS   = -std=c99 -pedantic -Wall -Os ${INCS} ${CPPFLAGS}
 LDFLAGS  = -s ${LIBS}
+#CFLAGS   = -std=c99 -pedantic -Wall -O0 -g -v -da -Q ${INCS} ${CPPFLAGS} # for debugging
+#LDFLAGS  = ${LIBS} # for debugging
 
 # compiler and linker
 CC = cc
