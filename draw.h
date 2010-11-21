@@ -1,4 +1,5 @@
 /* See LICENSE file for copyright and license details. */
+#include <X11/Xft/Xft.h>
 
 typedef struct {
 	int x, y, w, h;
