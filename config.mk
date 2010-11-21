@@ -26,8 +26,6 @@ LIBS = -L${X11LIB} -lX11 ${XINERAMALIBS} ${XFTLIBS}
 CPPFLAGS = -D_BSD_SOURCE -DVERSION=\"${VERSION}\" ${XINERAMAFLAGS}
 CFLAGS   = -std=c99 -pedantic -Wall -Os ${INCS} ${CPPFLAGS}
 LDFLAGS  = -s ${LIBS}
-#CFLAGS   = -std=c99 -pedantic -Wall -O0 -g ${INCS} ${CPPFLAGS} # for debugging
-#LDFLAGS  = ${LIBS} # for debugging
 
 # compiler and linker
 CC = cc

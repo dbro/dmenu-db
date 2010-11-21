@@ -5,6 +5,7 @@ typedef struct {
 	Display *dpy;
 	GC gc;
 	Pixmap canvas;
+    XftDraw *xftdraw;
 	struct {
 		int ascent;
 		int descent;
@@ -13,8 +14,6 @@ typedef struct {
 		XFontStruct *xfont;
         XftFont *xft_font;
 	} font;
-    XftDraw *xftdraw;
-    XGlyphInfo gi;
 } DC;  /* draw context */
 
 typedef struct {

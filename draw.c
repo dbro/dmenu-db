@@ -31,7 +31,7 @@ drawtext(DC *dc, const char *text, ColorSet col) {
 
 	/* shorten text if necessary */
 	n = strlen(text);
-	for(mn = MIN(n, sizeof buf); textnw(dc, text, mn) > dc->w - (dc->font.height)/2; mn--)
+	for(mn = MIN(n, sizeof buf); textnw(dc, text, mn) > dc->w - dc->font.height/2; mn--)
 		if(mn == 0)
 			return;
 	memcpy(buf, text, mn);
@@ -46,8 +46,8 @@ void
 drawtextn(DC *dc, const char *text, size_t n, ColorSet col) {
 	int x, y;
 
-	x = dc->x + (dc->font.height)/2;
-	y = dc->y + (dc->font.ascent)+1;
+	x = dc->x + dc->font.height/2;
+	y = dc->y + dc->font.ascent+1;
 
 	XSetForeground(dc->dpy, dc->gc, col.FG);
     if(dc->font.xft_font) {
@@ -77,17 +77,14 @@ eprintf(const char *fmt, ...) {
 void
 freedc(DC *dc) {
     if(dc->font.xft_font) {
-//        int screen = DefaultScreen(dc->dpy);
-//        XftColorFree(dc->dpy, DefaultVisual(dc->dpy, screen), DefaultColormap(dc->dpy, screen), &dc->xftcolor);
-//        XftColorFree(dc->dpy, DefaultVisual(dc->dpy, screen), DefaultColormap(dc->dpy, screen), &dc->xftselcolor);
         XftFontClose(dc->dpy, dc->font.xft_font);
         XftDrawDestroy(dc->xftdraw);
     }
 	if(dc->font.set)
 		XFreeFontSet(dc->dpy, dc->font.set);
-	if(dc->font.xfont)
+    if(dc->font.xfont)
 		XFreeFont(dc->dpy, dc->font.xfont);
-	if(dc->canvas)
+    if(dc->canvas)
 		XFreePixmap(dc->dpy, dc->canvas);
 	XFreeGC(dc->dpy, dc->gc);
 	XCloseDisplay(dc->dpy);

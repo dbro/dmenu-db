@@ -16,8 +16,7 @@
 #define INRECT(x,y,rx,ry,rw,rh) ((x) >= (rx) && (x) < (rx)+(rw) && (y) >= (ry) && (y) < (ry)+(rh))
 #define MIN(a,b)                ((a) < (b) ? (a) : (b))
 #define MAX(a,b)                ((a) > (b) ? (a) : (b))
-#define DEFFONT "Monospace-11:normal" // xft default
-//#define DEFFONT "fixed" // regular x font default
+#define DEFFONT "Monospace-11:normal" /* xft example: "Monospace-11:normal" ; regular example: "fixed" */
 
 typedef struct Item Item;
 struct Item {
@@ -28,6 +27,7 @@ struct Item {
 
 static void appenditem(Item *item, Item **list, Item **last);
 static void calcoffsets(void);
+static void cleanup(void);
 static void drawmenu(void);
 static char *fstrstr(const char *s, const char *sub);
 static void grabkeyboard(void);
@@ -58,6 +58,8 @@ static ColorSet normcol;
 static ColorSet selcol;
 static Atom utf8;
 static Bool topbar = True;
+static Bool running = True;
+static int ret = 0;
 static DC *dc;
 static Item *items = NULL;
 static Item *matches, *sel;
@@ -108,8 +110,8 @@ main(int argc, char *argv[]) {
 	readstdin();
 	setup();
 	run();
-
-	return EXIT_FAILURE;  /* should not reach */
+    cleanup();
+    return ret;
 }
 
 void
@@ -141,6 +143,25 @@ calcoffsets(void) {
 }
 
 void
+cleanup(void) {
+    Item *itm;
+    while(items) {
+        itm = items->next;
+        free(items->text);
+        free(items);
+        items = itm;
+    }
+    if(dc->font.xft_font) {
+        int screen = DefaultScreen(dc->dpy);
+        XftColorFree(dc->dpy, DefaultVisual(dc->dpy, screen), DefaultColormap(dc->dpy, screen), &normcol.FG_xft);
+        XftColorFree(dc->dpy, DefaultVisual(dc->dpy, screen), DefaultColormap(dc->dpy, screen), &selcol.FG_xft);
+    }
+    XDestroyWindow(dc->dpy, win);
+    XUngrabKeyboard(dc->dpy, CurrentTime);
+    freedc(dc);
+}
+
+void
 drawmenu(void) {
 	int curpos;
 	Item *item;
@@ -164,7 +185,7 @@ drawmenu(void) {
 		dc->w = mw - dc->x;
 		for(item = curr; item != next; item = item->right) {
 			dc->y += dc->h;
-			drawtext(dc, item->text, (item==sel) ? selcol : normcol);
+			drawtext(dc, item->text, (item == sel) ? selcol : normcol);
 		}
 	}
 	else if(matches) {
@@ -175,7 +196,7 @@ drawmenu(void) {
 		for(item = curr; item != next; item = item->right) {
 			dc->x += dc->w;
 			dc->w = MIN(textw(dc, item->text), mw - dc->x - textw(dc, ">"));
-			drawtext(dc, item->text, (item==sel) ? selcol : normcol);
+			drawtext(dc, item->text, (item == sel) ? selcol : normcol);
 		}
 		dc->w = textw(dc, ">");
 		dc->x = mw - dc->w;
@@ -307,7 +328,8 @@ keypress(XKeyEvent *ev) {
 			sel = sel->right;
 		break;
 	case XK_Escape:
-		exit(EXIT_FAILURE);
+        ret = EXIT_FAILURE;
+        running = False;
 	case XK_Home:
 		if(sel == matches) {
 			cursor = 0;
@@ -345,7 +367,8 @@ keypress(XKeyEvent *ev) {
 	case XK_KP_Enter:
 		fputs((sel && !(ev->state & ShiftMask)) ? sel->text : text, stdout);
 		fflush(stdout);
-		exit(EXIT_SUCCESS);
+        ret = EXIT_SUCCESS;
+        running = False;
 	case XK_Right:
 		if(cursor < len) {
 			cursor = nextrune(+1);
@@ -454,7 +477,7 @@ void
 run(void) {
 	XEvent ev;
 
-	while(!XNextEvent(dc->dpy, &ev))
+	while(running && !XNextEvent(dc->dpy, &ev))
 		switch(ev.type) {
 		case Expose:
 			if(ev.xexpose.count == 0)
