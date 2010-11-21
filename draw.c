@@ -154,9 +154,9 @@ initfont(DC *dc, const char *fontstr) {
 	char *def, **missing=NULL;
 	int i, n;
 
-    if((dc->font.xft_font = XftFontOpenName (dc->dpy, DefaultScreen(dc->dpy), fontstr))) {
-        dc->font.ascent = dc->font.xft_font->ascent;
-        dc->font.descent = dc->font.xft_font->descent;
+	if((dc->font.xfont = XLoadQueryFont(dc->dpy, fontstr))) {
+		dc->font.ascent = dc->font.xfont->ascent;
+		dc->font.descent = dc->font.xfont->descent;
 	} else if((dc->font.set = XCreateFontSet(dc->dpy, fontstr, &missing, &n, &def))) {
 		char **names;
 		XFontStruct **xfonts;
@@ -166,9 +166,10 @@ initfont(DC *dc, const char *fontstr) {
 			dc->font.ascent = MAX(dc->font.ascent, xfonts[i]->ascent);
 			dc->font.descent = MAX(dc->font.descent, xfonts[i]->descent);
 		}
-	} else if((dc->font.xfont = XLoadQueryFont(dc->dpy, fontstr))) {
-		dc->font.ascent = dc->font.xfont->ascent;
-		dc->font.descent = dc->font.xfont->descent;
+    } else if((dc->font.xft_font = XftFontOpenName(dc->dpy,
+            DefaultScreen(dc->dpy), fontstr))) {
+        dc->font.ascent = dc->font.xft_font->ascent;
+        dc->font.descent = dc->font.xft_font->descent;
 	} else {
 	    eprintf("cannot load font '%s'\n", fontstr);
     }

@@ -15,7 +15,7 @@
 #define INRECT(x,y,rx,ry,rw,rh) ((x) >= (rx) && (x) < (rx)+(rw) && (y) >= (ry) && (y) < (ry)+(rh))
 #define MIN(a,b)                ((a) < (b) ? (a) : (b))
 #define MAX(a,b)                ((a) > (b) ? (a) : (b))
-#define DEFFONT "Monospace-11:normal" /* xft example: "Monospace-11:normal" ; regular example: "fixed" */
+#define DEFFONT "fixed" /* xft example: "Monospace-11" */
 
 typedef struct Item Item;
 struct Item {
