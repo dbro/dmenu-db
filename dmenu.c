@@ -33,7 +33,8 @@ static char *fstrstr(const char *s, const char *sub);
 static void grabkeyboard(void);
 static void insert(const char *s, ssize_t n);
 static void keypress(XKeyEvent *ev);
-static void match(void);
+static void matchstr(void);
+static void matchtok(void);
 static size_t nextrune(int incr);
 static void paste(void);
 static void readstdin(void);
@@ -57,6 +58,7 @@ static const char *selfgcolor  = "#ffffff";
 static ColorSet normcol;
 static ColorSet selcol;
 static Atom utf8;
+static Bool filter = False;
 static Bool topbar = True;
 static Bool running = True;
 static int ret = 0;
@@ -67,6 +69,7 @@ static Item *prev, *curr, *next;
 static Window root, win;
 
 static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
+static void (*match)(void) = matchstr;
 
 int
 main(int argc, char *argv[]) {
@@ -81,8 +84,12 @@ main(int argc, char *argv[]) {
 		}
 		else if(!strcmp(argv[i], "-b"))
 			topbar = False;
+		else if(!strcmp(argv[i], "-f"))
+			filter = True;
 		else if(!strcmp(argv[i], "-i"))
 			fstrncmp = strncasecmp;
+        else if(!strcmp(argv[i], "-t"))
+            match = matchtok;
 		else if(i == argc-1)
 			usage();
 		/* double flags */
@@ -153,8 +160,10 @@ cleanup(void) {
     }
     if(dc->font.xft_font) {
         int screen = DefaultScreen(dc->dpy);
-        XftColorFree(dc->dpy, DefaultVisual(dc->dpy, screen), DefaultColormap(dc->dpy, screen), &normcol.FG_xft);
-        XftColorFree(dc->dpy, DefaultVisual(dc->dpy, screen), DefaultColormap(dc->dpy, screen), &selcol.FG_xft);
+        XftColorFree(dc->dpy, DefaultVisual(dc->dpy, screen),
+            DefaultColormap(dc->dpy, screen), &normcol.FG_xft);
+        XftColorFree(dc->dpy, DefaultVisual(dc->dpy, screen),
+            DefaultColormap(dc->dpy, screen), &selcol.FG_xft);
     }
     XDestroyWindow(dc->dpy, win);
     XUngrabKeyboard(dc->dpy, CurrentTime);
@@ -365,7 +374,15 @@ keypress(XKeyEvent *ev) {
 		break;
 	case XK_Return:
 	case XK_KP_Enter:
-		fputs((sel && !(ev->state & ShiftMask)) ? sel->text : text, stdout);
+        if((ev->state & ShiftMask) || !sel)
+            puts(text);
+        else if(filter) {
+            for(Item *item = sel; item; item = item->right)
+                puts(item->text);
+            for(Item *item = matches; item != sel; item = item->right)
+                puts(item->text);
+        } else
+            puts(sel->text);
 		fflush(stdout);
         ret = EXIT_SUCCESS;
         running = False;
@@ -394,7 +411,7 @@ keypress(XKeyEvent *ev) {
 }
 
 void
-match(void) {
+matchstr(void) {
 	size_t len;
 	Item *item, *itemend, *lexact, *lprefix, *lsubstr, *exactend, *prefixend, *substrend;
 
@@ -431,6 +448,33 @@ match(void) {
 	}
 	curr = prev = next = sel = matches;
 	calcoffsets();
+}
+
+void
+matchtok(void) {
+    char buf[sizeof text];
+    char **tokv, *s;
+    int tokc, i;
+    Item *item, *end;
+
+    tokc = 0;
+    tokv = NULL;
+    strcpy(buf, text);
+    for(s = strtok(buf, " "); s; tokv[tokc-1] = s, s = strtok(NULL, " "))
+        if(!(tokv = realloc(tokv, ++tokc * sizeof *tokv)))
+            eprintf("cannot realloc %u bytes\n", tokc * sizeof *tokv);
+
+    matches = end = NULL;
+    for(item = items; item; item = item->next) {
+        for(i = 0; i < tokc; i++)
+            if(!fstrstr(item->text, tokv[i]))
+                break;
+        if(i == tokc)
+            appenditem(item, &matches, &end);
+    }
+    free(tokv);
+    curr = prev = next = sel = matches;
+    calcoffsets();
 }
 
 size_t
@@ -570,7 +614,7 @@ setup(void) {
 
 void
 usage(void) {
-	fputs("usage: dmenu [-b] [-i] [-l lines] [-m monitor] [-p prompt] [-fn font]\n"
-	      "             [-nb color] [-nf color] [-sb color] [-sf color] [-v]\n", stderr);
+	fputs("usage: dmenu [-b] [-f] [-i] [-l lines] [-m monitor] [-p prompt] [-fn font]\n"
+	      "             [-nb color] [-nf color] [-sb color] [-sf color] [-t] [-v]\n", stderr);
 	exit(EXIT_FAILURE);
 }

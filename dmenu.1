@@ -4,9 +4,13 @@ dmenu \- dynamic menu
 .SH SYNOPSIS
 .B dmenu
 .RB [ \-b ]
+.RB [ \-f
+.IR filter ]
 .RB [ \-i ]
 .RB [ \-l
 .IR lines ]
+.RB [ \-t
+.IR token matching ]
 .RB [ \-m
 .IR monitor ]
 .RB [ \-p
@@ -47,8 +51,14 @@ is a program used by dmenu_run to find and cache a list of executables.
 .B \-b
 dmenu appears at the bottom of the screen.
 .TP
+.BI \-f " filter"
+return all matching items, not only the one at the cursor.
+.TP
 .B \-i
 dmenu matches menu items case insensitively.
+.TP
+.BI \-t " token matching"
+match fragments of the full items.
 .TP
 .BI \-l " lines"
 dmenu lists items vertically, with the given number of lines.
