@@ -25,7 +25,7 @@ drawrect(DC *dc, int x, int y, unsigned int w, unsigned int h, Bool fill, unsign
 
 
 void
-drawtext(DC *dc, const char *text, ColorSet col) {
+drawtext(DC *dc, const char *text, ColorSet *col) {
 	char buf[256];
 	size_t n, mn;
 
@@ -38,22 +38,22 @@ drawtext(DC *dc, const char *text, ColorSet col) {
 	if(mn < n)
 		for(n = MAX(mn-3, 0); n < mn; buf[n++] = '.');
 
-	drawrect(dc, 0, 0, dc->w, dc->h, True, col.BG);
+	drawrect(dc, 0, 0, dc->w, dc->h, True, col->BG);
 	drawtextn(dc, buf, mn, col);
 }
 
 void
-drawtextn(DC *dc, const char *text, size_t n, ColorSet col) {
+drawtextn(DC *dc, const char *text, size_t n, ColorSet *col) {
 	int x, y;
 
 	x = dc->x + dc->font.height/2;
 	y = dc->y + dc->font.ascent+1;
 
-	XSetForeground(dc->dpy, dc->gc, col.FG);
+	XSetForeground(dc->dpy, dc->gc, col->FG);
     if(dc->font.xft_font) {
         if (!dc->xftdraw)
             eprintf("error, xft drawable does not exist");
-        XftDrawStringUtf8(dc->xftdraw, &col.FG_xft, 
+        XftDrawStringUtf8(dc->xftdraw, &col->FG_xft, 
             dc->font.xft_font, x, y, (unsigned char*)text, n);
     } else if(dc->font.set) {
 		XmbDrawString(dc->dpy, dc->canvas, dc->font.set, dc->gc, x, y, text, n);
@@ -75,6 +75,16 @@ eprintf(const char *fmt, ...) {
 }
 
 void
+freecol(DC *dc, ColorSet *col) {
+    if(col) {
+        if(&col->FG_xft)
+            XftColorFree(dc->dpy, DefaultVisual(dc->dpy, DefaultScreen(dc->dpy)),
+                DefaultColormap(dc->dpy, DefaultScreen(dc->dpy)), &col->FG_xft);
+        free(col); 
+    }
+}
+
+void
 freedc(DC *dc) {
     if(dc->font.xft_font) {
         XftFontClose(dc->dpy, dc->font.xft_font);
@@ -86,9 +96,12 @@ freedc(DC *dc) {
 		XFreeFont(dc->dpy, dc->font.xfont);
     if(dc->canvas)
 		XFreePixmap(dc->dpy, dc->canvas);
-	XFreeGC(dc->dpy, dc->gc);
-	XCloseDisplay(dc->dpy);
-	free(dc);
+	if(dc->gc)
+        XFreeGC(dc->dpy, dc->gc);
+	if(dc->dpy)
+        XCloseDisplay(dc->dpy);
+	if(dc)
+        free(dc);
 }
 
 unsigned long
@@ -99,6 +112,20 @@ getcolor(DC *dc, const char *colstr) {
 	if(!XAllocNamedColor(dc->dpy, cmap, colstr, &color, &color))
 		eprintf("cannot allocate color '%s'\n", colstr);
 	return color.pixel;
+}
+
+ColorSet *
+initcolor(DC *dc, const char * foreground, const char * background) {
+    ColorSet * col = (ColorSet *)malloc(sizeof(ColorSet));
+    if(!col)
+        eprintf("error, cannot allocate memory for color set");
+    col->BG = getcolor(dc, background);
+    col->FG = getcolor(dc, foreground);
+    if(dc->font.xft_font)
+        if(!XftColorAllocName(dc->dpy, DefaultVisual(dc->dpy, DefaultScreen(dc->dpy)),
+        DefaultColormap(dc->dpy, DefaultScreen(dc->dpy)), foreground, &col->FG_xft))
+            eprintf("error, cannot allocate xft font color '%s'\n", foreground);
+    return col;
 }
 
 DC *
@@ -123,7 +150,7 @@ initdc(void) {
 }
 
 void
-loadfont(DC *dc, const char *fontstr) {
+initfont(DC *dc, const char *fontstr) {
 	char *def, **missing=NULL;
 	int i, n;
 

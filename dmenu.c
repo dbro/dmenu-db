@@ -55,8 +55,8 @@ static const char *normbgcolor = "#cccccc";
 static const char *normfgcolor = "#000000";
 static const char *selbgcolor  = "#0066ff";
 static const char *selfgcolor  = "#ffffff";
-static ColorSet normcol;
-static ColorSet selcol;
+static ColorSet *normcol;
+static ColorSet *selcol;
 static Atom utf8;
 static Bool filter = False;
 static Bool topbar = True;
@@ -113,7 +113,9 @@ main(int argc, char *argv[]) {
 			usage();
 
 	dc = initdc();
-    loadfont(dc, font ? font : DEFFONT);
+    initfont(dc, font ? font : DEFFONT);
+    normcol = initcolor(dc, normfgcolor, normbgcolor);
+    selcol = initcolor(dc, selfgcolor, selbgcolor);
 	readstdin();
 	setup();
 	run();
@@ -158,13 +160,8 @@ cleanup(void) {
         free(items);
         items = itm;
     }
-    if(dc->font.xft_font) {
-        int screen = DefaultScreen(dc->dpy);
-        XftColorFree(dc->dpy, DefaultVisual(dc->dpy, screen),
-            DefaultColormap(dc->dpy, screen), &normcol.FG_xft);
-        XftColorFree(dc->dpy, DefaultVisual(dc->dpy, screen),
-            DefaultColormap(dc->dpy, screen), &selcol.FG_xft);
-    }
+    freecol(dc, normcol);
+    freecol(dc, selcol);
     XDestroyWindow(dc->dpy, win);
     XUngrabKeyboard(dc->dpy, CurrentTime);
     freedc(dc);
@@ -178,7 +175,7 @@ drawmenu(void) {
 	dc->x = 0;
 	dc->y = 0;
 	dc->h = bh;
-	drawrect(dc, 0, 0, mw, mh, True, normcol.BG);
+	drawrect(dc, 0, 0, mw, mh, True, normcol->BG);
 
 	if(prompt) {
 		dc->w = promptw;
@@ -188,7 +185,7 @@ drawmenu(void) {
 	dc->w = (lines > 0 || !matches) ? mw - dc->x : inputw;
 	drawtext(dc, text, normcol);
 	if((curpos = textnw(dc, text, cursor) + dc->h/2 - 2) < dc->w)
-		drawrect(dc, curpos, 2, 1, dc->h - 4, True, normcol.FG);
+		drawrect(dc, curpos, 2, 1, dc->h - 4, True, normcol->FG);
 
 	if(lines > 0) {
 		dc->w = mw - dc->x;
@@ -553,21 +550,8 @@ setup(void) {
 	screen = DefaultScreen(dc->dpy);
 	root = RootWindow(dc->dpy, screen);
 	utf8 = XInternAtom(dc->dpy, "UTF8_STRING", False);
-
-	normcol.BG = getcolor(dc, normbgcolor);
-	normcol.FG = getcolor(dc, normfgcolor);
-	selcol.BG = getcolor(dc, selbgcolor);
-	selcol.FG = getcolor(dc, selfgcolor);
-    if(dc->font.xft_font) {
-        if(!XftColorAllocName(dc->dpy, DefaultVisual(dc->dpy, screen),
-        DefaultColormap(dc->dpy, screen), (const char*)normfgcolor, &normcol.FG_xft))
-            eprintf("error, cannot allocate xft font color '%s'\n", normfgcolor);
-        if(!XftColorAllocName(dc->dpy, DefaultVisual(dc->dpy, screen),
-        DefaultColormap(dc->dpy, screen), (const char*)selfgcolor, &selcol.FG_xft))
-            eprintf("error, cannot allocate xft font color '%s'\n", selfgcolor);
-    }
-
-	/* menu geometry */
+	
+    /* menu geometry */
 	bh = dc->font.height + 2;
 	lines = MAX(lines, 0);
 	mh = (lines + 1) * bh;
