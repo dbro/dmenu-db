@@ -16,6 +16,8 @@
 #define INRECT(x,y,rx,ry,rw,rh) ((x) >= (rx) && (x) < (rx)+(rw) && (y) >= (ry) && (y) < (ry)+(rh))
 #define MIN(a,b)                ((a) < (b) ? (a) : (b))
 #define MAX(a,b)                ((a) > (b) ? (a) : (b))
+#define DEFFONT "Monospace-11:normal" // xft default
+//#define DEFFONT "fixed" // regular x font default
 
 typedef struct Item Item;
 struct Item {
@@ -47,14 +49,13 @@ static int monitor = -1;
 static int promptw;
 static size_t cursor = 0;
 static const char *font = NULL;
-static const char *fontxft = NULL; // "Monospace-10:normal"; /*if set xft is used */
 static const char *prompt = NULL;
 static const char *normbgcolor = "#cccccc";
 static const char *normfgcolor = "#000000";
 static const char *selbgcolor  = "#0066ff";
 static const char *selfgcolor  = "#ffffff";
-static unsigned long normcol[ColLast];
-static unsigned long selcol[ColLast];
+static ColorSet normcol;
+static ColorSet selcol;
 static Atom utf8;
 static Bool topbar = True;
 static DC *dc;
@@ -91,8 +92,6 @@ main(int argc, char *argv[]) {
 			prompt = argv[++i];
 		else if(!strcmp(argv[i], "-fn"))
 			font = argv[++i];
-		else if(!strcmp(argv[i], "-fa"))
-			fontxft = argv[++i];
 		else if(!strcmp(argv[i], "-nb"))
 			normbgcolor = argv[++i];
 		else if(!strcmp(argv[i], "-nf"))
@@ -105,16 +104,7 @@ main(int argc, char *argv[]) {
 			usage();
 
 	dc = initdc();
-    if(fontxft) {
-	    int screen = DefaultScreen(dc->dpy);
-        if(!XftColorAllocName(dc->dpy, DefaultVisual(dc->dpy, screen), DefaultColormap(dc->dpy, screen), (const char*)normfgcolor, &dc->xftcolor))
-            eprintf("error, cannot allocate xft font color '%s'\n", normfgcolor);
-        if(!XftColorAllocName(dc->dpy, DefaultVisual(dc->dpy, screen), DefaultColormap(dc->dpy, screen), (const char*)selfgcolor, &dc->xftselcolor))
-            eprintf("error, cannot allocate xft font color '%s'\n", normfgcolor);
-        initxftfont(dc, fontxft);
-    }
-    else initfont(dc, font);
-
+    loadfont(dc, font ? font : DEFFONT);
 	readstdin();
 	setup();
 	run();
@@ -158,31 +148,23 @@ drawmenu(void) {
 	dc->x = 0;
 	dc->y = 0;
 	dc->h = bh;
-	drawrect(dc, 0, 0, mw, mh, True, BG(dc, normcol));
+	drawrect(dc, 0, 0, mw, mh, True, normcol.BG);
 
 	if(prompt) {
 		dc->w = promptw;
-        dc->selected=True;
 		drawtext(dc, prompt, selcol);
-        dc->selected=False;
 		dc->x = dc->w;
 	}
 	dc->w = (lines > 0 || !matches) ? mw - dc->x : inputw;
 	drawtext(dc, text, normcol);
 	if((curpos = textnw(dc, text, cursor) + dc->h/2 - 2) < dc->w)
-		drawrect(dc, curpos, 2, 1, dc->h - 4, True, FG(dc, normcol));
+		drawrect(dc, curpos, 2, 1, dc->h - 4, True, normcol.FG);
 
 	if(lines > 0) {
 		dc->w = mw - dc->x;
 		for(item = curr; item != next; item = item->right) {
 			dc->y += dc->h;
-            if(item==sel) {
-                dc->selected=True;
-			    drawtext(dc, item->text, selcol);
-                dc->selected=False;
-            } else {
-			    drawtext(dc, item->text, normcol);
-            }
+			drawtext(dc, item->text, (item==sel) ? selcol : normcol);
 		}
 	}
 	else if(matches) {
@@ -193,13 +175,7 @@ drawmenu(void) {
 		for(item = curr; item != next; item = item->right) {
 			dc->x += dc->w;
 			dc->w = MIN(textw(dc, item->text), mw - dc->x - textw(dc, ">"));
-            if(item==sel) {
-                dc->selected=True;
-			    drawtext(dc, item->text, selcol);
-                dc->selected=False;
-            } else {
-			    drawtext(dc, item->text, normcol);
-            }
+			drawtext(dc, item->text, (item==sel) ? selcol : normcol);
 		}
 		dc->w = textw(dc, ">");
 		dc->x = mw - dc->w;
@@ -511,13 +487,21 @@ setup(void) {
 	root = RootWindow(dc->dpy, screen);
 	utf8 = XInternAtom(dc->dpy, "UTF8_STRING", False);
 
-	normcol[ColBG] = getcolor(dc, normbgcolor);
-	normcol[ColFG] = getcolor(dc, normfgcolor);
-	selcol[ColBG] = getcolor(dc, selbgcolor);
-	selcol[ColFG] = getcolor(dc, selfgcolor);
+	normcol.BG = getcolor(dc, normbgcolor);
+	normcol.FG = getcolor(dc, normfgcolor);
+	selcol.BG = getcolor(dc, selbgcolor);
+	selcol.FG = getcolor(dc, selfgcolor);
+    if(dc->font.xft_font) {
+        if(!XftColorAllocName(dc->dpy, DefaultVisual(dc->dpy, screen),
+        DefaultColormap(dc->dpy, screen), (const char*)normfgcolor, &normcol.FG_xft))
+            eprintf("error, cannot allocate xft font color '%s'\n", normfgcolor);
+        if(!XftColorAllocName(dc->dpy, DefaultVisual(dc->dpy, screen),
+        DefaultColormap(dc->dpy, screen), (const char*)selfgcolor, &selcol.FG_xft))
+            eprintf("error, cannot allocate xft font color '%s'\n", selfgcolor);
+    }
 
 	/* menu geometry */
-	bh = (fontxft ? dc->xftfont.height : dc->font.height) + 2;
+	bh = dc->font.height + 2;
 	lines = MAX(lines, 0);
 	mh = (lines + 1) * bh;
 #ifdef XINERAMA
@@ -563,7 +547,7 @@ setup(void) {
 
 void
 usage(void) {
-	fputs("usage: dmenu [-b] [-i] [-l lines] [-m monitor] [-p prompt] [-fn font] [-fa xftfont]\n"
+	fputs("usage: dmenu [-b] [-i] [-l lines] [-m monitor] [-p prompt] [-fn font]\n"
 	      "             [-nb color] [-nf color] [-sb color] [-sf color] [-v]\n", stderr);
 	exit(EXIT_FAILURE);
 }

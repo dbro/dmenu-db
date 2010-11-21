@@ -1,13 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
-#define FG(dc, col)  ((col)[(dc)->invert ? ColBG : ColFG])
-#define BG(dc, col)  ((col)[(dc)->invert ? ColFG : ColBG])
-
-enum { ColBG, ColFG, ColBorder, ColLast };
-
 typedef struct {
 	int x, y, w, h;
-	Bool invert;
 	Display *dpy;
 	GC gc;
 	Pixmap canvas;
@@ -17,28 +11,25 @@ typedef struct {
 		int height;
 		XFontSet set;
 		XFontStruct *xfont;
-	} font;
-    Bool selected;
-    XftDraw *xftdraw;
-    XftColor xftselcolor;
-    XftColor xftcolor;
-    XGlyphInfo gi;
-    struct {
         XftFont *xft_font;
-        int ascent;
-        int descent;
-        int height;
-    } xftfont;
+	} font;
+    XftDraw *xftdraw;
+    XGlyphInfo gi;
 } DC;  /* draw context */
 
+typedef struct {
+    unsigned long FG;
+    XftColor FG_xft;
+    unsigned long BG;
+} ColorSet;
+ 
 unsigned long getcolor(DC *dc, const char *colstr);
 void drawrect(DC *dc, int x, int y, unsigned int w, unsigned int h, Bool fill, unsigned long color);
-void drawtext(DC *dc, const char *text, unsigned long col[ColLast]);
-void drawtextn(DC *dc, const char *text, size_t n, unsigned long col[ColLast]);
-void initfont(DC *dc, const char *fontstr);
-void initxftfont(DC *dc, const char *fontstr);
+void drawtext(DC *dc, const char *text, ColorSet col);
+void drawtextn(DC *dc, const char *text, size_t n, ColorSet col);
 void freedc(DC *dc);
 DC *initdc(void);
+void loadfont(DC *dc, const char *fontstr);
 void mapdc(DC *dc, Window win, unsigned int w, unsigned int h);
 void resizedc(DC *dc, unsigned int w, unsigned int h);
 int textnw(DC *dc, const char *text, size_t len);
