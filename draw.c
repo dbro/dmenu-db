@@ -168,6 +168,8 @@ initfont(DC *dc, const char *fontstr) {
 		}
     } else if((dc->font.xft_font = XftFontOpenName(dc->dpy,
             DefaultScreen(dc->dpy), fontstr))) {
+        /* check for xft name match last because XftFontOpenName() */
+        /* will fall back on the default xft font automatically */
         dc->font.ascent = dc->font.xft_font->ascent;
         dc->font.descent = dc->font.xft_font->descent;
 	} else {

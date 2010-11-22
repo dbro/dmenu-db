@@ -113,8 +113,6 @@ main(int argc, char *argv[]) {
 
 	dc = initdc();
     initfont(dc, font ? font : DEFFONT);
-    normcol = initcolor(dc, normfgcolor, normbgcolor);
-    selcol = initcolor(dc, selfgcolor, selbgcolor);
 	readstdin();
 	setup();
 	run();
@@ -550,6 +548,9 @@ setup(void) {
 	root = RootWindow(dc->dpy, screen);
 	utf8 = XInternAtom(dc->dpy, "UTF8_STRING", False);
 	
+    normcol = initcolor(dc, normfgcolor, normbgcolor);
+    selcol = initcolor(dc, selfgcolor, selbgcolor);
+
     /* menu geometry */
 	bh = dc->font.height + 2;
 	lines = MAX(lines, 0);
