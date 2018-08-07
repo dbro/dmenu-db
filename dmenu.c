@@ -261,6 +261,7 @@ keypress(XKeyEvent *ev) {
 			ksym = XK_Left;
 			break;
 		case XK_c:
+		case XK_bracketleft:
 			ksym = XK_Escape;
 			break;
 		case XK_d:
